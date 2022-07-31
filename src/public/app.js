@@ -1,11 +1,13 @@
 //External Libraries
 import * as THREE from "/modules/three.module.js";
 import Stats from "/modules/stats.module.js";
+import { Octree } from "/modules/Octree.js";
 // import Delaunator from "https://cdn.skypack.dev/delaunator@5.0.0";
 //Internal Libraries
 import { NoClipControls } from "/utils/NoClipControls.js";
 import { PhysicsObject } from "/utils/PhysicsObject.js";
 import { DelaunayGenerator } from "/utils/DelaunayGenerator.js";
+import { ProjectileGenerator } from "/utils/ProjectileGenerator.js";
 //THREE JS
 let camera, scene, renderer, composer, controls;
 let stats;
@@ -14,7 +16,16 @@ let prevTime = performance.now();
 let physicsObjects = [];
 let frameIndex = 0;
 
+//Delaunay Generator
 let DG;
+//Projectile Generator
+let PG;
+
+let time = performance.now();
+
+//Octree Terrain
+let worldOctree;
+let octreeObjects = new THREE.Group();
 
 init();
 animate();
@@ -68,6 +79,12 @@ function init() {
     camera.position.x = 10;
   };
   createCamera();
+
+  //##############################################################################
+  //Octree Setup
+  //##############################################################################
+
+  worldOctree = new Octree();
 
   //##############################################################################
   //Environment Controls
@@ -181,6 +198,18 @@ function init() {
   console.log(DG);
   DG.createPoints();
   DG.calculate();
+
+  let terrain = scene
+    .getObjectByProperty("uuid", DG.lastUUIDMesh_Texture)
+    .clone();
+  octreeObjects.add(terrain);
+  worldOctree.fromGraphNode(octreeObjects);
+  //##############################################################################
+  //Projectiles
+  //##############################################################################
+
+  PG = new ProjectileGenerator(scene, camera, window, worldOctree);
+  console.log(PG);
 }
 
 function animate() {
@@ -205,7 +234,21 @@ function animate() {
     DG.update();
   }
 
-  const time = performance.now();
+  if (frameIndex % 2 == 0) {
+    PG.update();
+  }
+
+  if (frameIndex % 500 == 0) {
+    console.log("Resetting Terrain Collisions via Octree");
+    let terrain = scene
+      .getObjectByProperty("uuid", DG.lastUUIDMesh_Texture)
+      .clone();
+    octreeObjects = new THREE.Group();
+    octreeObjects.add(terrain);
+    worldOctree.fromGraphNode(octreeObjects);
+  }
+
+  time = performance.now();
   controls.update(time, prevTime);
   renderer.render(scene, camera);
   stats.update();
