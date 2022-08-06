@@ -12,7 +12,8 @@
   "dependencies": {
     "delaunator": "^5.0.0",
     "express": "^4.16.4",
-    "simplex-noise": "^4.0.0"
+    "simplex-noise": "^4.0.0",
+    "three": "^0.143.0"
   },
   "engines": {
     "node": "8.x"
@@ -28,5 +29,9 @@
   "directories": {
     "test": "tests"
   },
-  "author": ""
+  "author": "",
+  "devDependencies": {
+    "@masatomakino/raf-ticker": "^0.2.9",
+    "threejs-shader-materials": "github:MasatoMakino/threejs-shader-materials"
+  }
 }

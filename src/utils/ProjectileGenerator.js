@@ -11,12 +11,12 @@ class ProjectileGenerator {
     this.vector2 = new THREE.Vector3();
     this.vector3 = new THREE.Vector3();
     this.GRAVITY = 9.8 ** 2;
-    this.NUM_SPHERES = 25;
+    this.NUM_SPHERES = 10;
     this.SPHERE_RADIUS = 2;
     this.STEPS_PER_FRAME = 5;
 
     this.sphereGeometry = new THREE.IcosahedronGeometry(this.SPHERE_RADIUS, 5);
-    this.sphereMaterial = new THREE.MeshLambertMaterial({ color: 0xbbbb44 });
+    this.sphereMaterial = new THREE.MeshStandardMaterial({ color: 0xbbb244, emissive: 0x000000, emissiveIntensity: 1.0 });
 
     this.spheres = [];
     this.sphereIdx = 0;
@@ -39,6 +39,8 @@ class ProjectileGenerator {
     });
   }
   initializeBufferSpheres() {
+
+    
     for (let i = 0; i < this.NUM_SPHERES; i++) {
       const sphere = new THREE.Mesh(this.sphereGeometry, this.sphereMaterial);
       sphere.castShadow = true;
@@ -137,16 +139,23 @@ class ProjectileGenerator {
 
     //Updates the actual visual mesh
     for (const sphere of this.spheres) {
+      //Necessary
       sphere.mesh.position.copy(sphere.collider.center);
     }
   }
+
+
+
 
   update() {
     const deltaTime =
       Math.min(0.05, this.clock.getDelta()) / this.STEPS_PER_FRAME;
     for (let i = 0; i < this.STEPS_PER_FRAME; i++) {
       this.updateSpheres(deltaTime);
+
     }
+
+    this.frameIndex +=1
   }
 }
 export { ProjectileGenerator };

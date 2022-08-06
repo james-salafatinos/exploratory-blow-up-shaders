@@ -14,6 +14,7 @@ app.get("/", function (request, response) {
   app.use('/modules', express.static('./src/modules'))
   app.use('/utils', express.static('./src/utils'))
   app.use('/data', express.static('./src/data'))
+  app.use('/shaders', express.static('./src/shaders'))
   response.sendFile(__dirname + "/src/views/index.html");
 });
 

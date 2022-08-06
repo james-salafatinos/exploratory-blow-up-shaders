@@ -2,14 +2,27 @@
 import * as THREE from "/modules/three.module.js";
 import Stats from "/modules/stats.module.js";
 import { Octree } from "/modules/Octree.js";
+
+import { EffectComposer } from '/modules/EffectComposer.js';
+import { ShaderPass } from '/modules/ShaderPass.js';
+import { RenderPass } from '/modules/RenderPass.js';
+import { UnrealBloomPass } from '/modules/UnrealBloomPass.js';
+
+import { HexGridMaterial } from "/shaders/HexGridMaterial.js";
+import { HexDissolveMaterial } from "/shaders/HexDissolveMaterial.js";
+import { CellularNoiseMaterial } from "/shaders/CellularNoiseMaterial.js";
+import { FBMDissolveMaterial } from "/shaders/FBMDissolveMaterial.js";
+
 // import Delaunator from "https://cdn.skypack.dev/delaunator@5.0.0";
+
 //Internal Libraries
 import { NoClipControls } from "/utils/NoClipControls.js";
 import { PhysicsObject } from "/utils/PhysicsObject.js";
 import { DelaunayGenerator } from "/utils/DelaunayGenerator.js";
 import { ProjectileGenerator } from "/utils/ProjectileGenerator.js";
+import { LineGenerator } from "/utils/LineGenerator.js";
 //THREE JS
-let camera, scene, renderer, composer, controls;
+let camera, scene, renderer, controls;
 let stats;
 //Required for NOCLIPCONTROLS
 let prevTime = performance.now();
@@ -20,12 +33,23 @@ let frameIndex = 0;
 let DG;
 //Projectile Generator
 let PG;
+//Line Generator
+let LG;
+
 
 let time = performance.now();
 
 //Octree Terrain
 let worldOctree;
 let octreeObjects = new THREE.Group();
+
+//Shader explanation
+let TEST_SPHERE;
+
+let NUM_DESTROYABLE_MESHES = 15
+let destroyable_meshes = []
+let progressUpdateValue = 1
+let destroyable_meshes_collided = Array(NUM_DESTROYABLE_MESHES).fill(0)
 
 init();
 animate();
@@ -63,6 +87,8 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    
   };
   createRenderer();
 
@@ -77,6 +103,7 @@ function init() {
     camera.position.y = 30;
     camera.position.z = 150;
     camera.position.x = 10;
+    camera.layers.enable(1);
   };
   createCamera();
 
@@ -96,6 +123,33 @@ function init() {
   //##############################################################################
   //Create Static Objects
   //##############################################################################
+
+  let addTestSphere = function () {
+    let geometry = new THREE.SphereGeometry(10, 10, 10)
+    let material = new FBMDissolveMaterial();
+    material.color = new THREE.Color(0x334466);
+    material.edgeColor = new THREE.Color(0x88ff77);
+    material.progress = 1;
+    material.tiles = 2;
+    material.edgeWeight = 0.2;
+    let mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(camera.position.x, camera.position.y - 10, camera.position.z - 20)
+    TEST_SPHERE = mesh
+    
+    return mesh
+
+  }
+  for (let i = 0; i < NUM_DESTROYABLE_MESHES; i++) {
+    let m = addTestSphere();
+    m.position.set(Math.random()*500, 25, Math.random()*500)
+    destroyable_meshes.push(m);
+    scene.add(m)
+  }
+
+
+ 
+
+
 
   let createPlane = function () {
     let mat = new THREE.MeshPhongMaterial({
@@ -153,11 +207,19 @@ function init() {
   p0.isStationary = true;
   p0.density = 200;
 
+
   //Black Hole
   physicsObjects.push(p0);
-  scene.add(p0.Sphere());
+  p0.Sphere()
+  p0.mesh.material = new CellularNoiseMaterial();
+  p0.mesh.material.transparent = true;
+  p0.mesh.material.grid = 8;
+  p0.mesh.material.speed = 2.0;
+  p0.mesh.material.divisionScaleX = 2.0;
 
-  //PhyscsObject creation loop
+  scene.add(p0.mesh);
+
+  //PhysicsObject creation loop
   for (let i = 0; i < 20; i++) {
     let radius = 80;
     let x_offset = 0;
@@ -177,15 +239,6 @@ function init() {
       0,
       1
     );
-    // physicsObject.m =    5 + (3 * Math.random() - 1) * 7,
-    // physicsObject.x = px;
-    // physicsObject.y = py;
-    // physicsObject.z = pz;
-    // physicsObject.offset = 0;
-    // physicsObject.ivx = 0;
-    // physicsObject.ivy = 0;
-    // physicsObject.ivz = 0.1;
-    // physicsObject.density = 1;
 
     physicsObjects.push(physicsObject);
     scene.add(physicsObject.Sphere());
@@ -210,8 +263,22 @@ function init() {
 
   PG = new ProjectileGenerator(scene, camera, window, worldOctree);
   console.log(PG);
+
+  LG = new LineGenerator(scene);
+  LG.createLines()
+  console.log(LG);
+
+
+
+
 }
 
+
+
+function secondsLerpDown(seconds) {
+  progressUpdateValue -= 0.01 * seconds
+  return progressUpdateValue
+}
 function animate() {
   //Frame Start up
   requestAnimationFrame(animate);
@@ -230,27 +297,64 @@ function animate() {
     }
   }
 
-  if (frameIndex % 2 == 0) {
-    DG.update();
+  if (frameIndex % 100 == 0) {
+    // DG.update();
   }
 
-  if (frameIndex % 2 == 0) {
+  if (frameIndex % 1 == 0) {
     PG.update();
   }
 
   if (frameIndex % 500 == 0) {
-    console.log("Resetting Terrain Collisions via Octree");
-    let terrain = scene
-      .getObjectByProperty("uuid", DG.lastUUIDMesh_Texture)
-      .clone();
-    octreeObjects = new THREE.Group();
-    octreeObjects.add(terrain);
-    worldOctree.fromGraphNode(octreeObjects);
+    // console.log("Resetting Terrain Collisions via Octree");
+    // let terrain = scene
+    //   .getObjectByProperty("uuid", DG.lastUUIDMesh_Texture)
+    //   .clone();
+    // octreeObjects = new THREE.Group();
+    // octreeObjects.add(terrain);
+    // worldOctree.fromGraphNode(octreeObjects);
   }
 
+  if (frameIndex % 1 == 0) {
+    //Projectile and destroyable mesh Collisions update
+    for (let i = 0; i < PG.spheres.length ; i++) {
+      let p1, p2
+      p1 = PG.spheres[i].mesh.position
+      for (let i = 0; i < NUM_DESTROYABLE_MESHES ; i++) {
+        p2 = destroyable_meshes[i].position
+        if (p1.distanceTo(p2) < 15){
+          console.log("collision")
+          //destroyable_meshes[i].material.progress = secondsLerpDown(3)
+          destroyable_meshes_collided[i] = 1
+        }
+      }
+      
+    }
+  }
+
+  //Check collisions flag loop, and update shader progress
+  if (frameIndex % 1 == 0) {
+      for (let i = 0; i < NUM_DESTROYABLE_MESHES ; i++) {
+        if (destroyable_meshes_collided[i] == 1){
+          destroyable_meshes[i].material.progress -= 0.01
+        }
+      }
+    }
+  
+
+  
   time = performance.now();
   controls.update(time, prevTime);
+
+
+
+
   renderer.render(scene, camera);
+
+
+
+
+
   stats.update();
   frameIndex += 1;
 
